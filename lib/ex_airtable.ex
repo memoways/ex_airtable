@@ -149,7 +149,7 @@ defmodule ExAirtable do
       job =
         Request.create(
           {table_module, :create, [smaller_list]},
-          {TableCache, :set_all, [table_module]}
+          {TableCache, :update, [table_module]}
         )
 
       RateLimiter.request(table_module, job)
