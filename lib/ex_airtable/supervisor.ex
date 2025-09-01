@@ -17,6 +17,7 @@ defmodule ExAirtable.Supervisor do
   Given options will be passed to sub-processes. Valid options are:
 
   - `:sync_rate` (integer) - amount of time in milliseconds between attempts to refresh table data from the API. Each table that you define will re-synchronize at this rate.
+  - `:notify` (function) - a function that will get run on all cache update
   """
   def start_link(table_modules) when is_list(table_modules) do
     Supervisor.start_link(__MODULE__, {table_modules, []}, name: __MODULE__)

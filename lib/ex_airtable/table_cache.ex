@@ -16,7 +16,7 @@ defmodule ExAirtable.TableCache do
   alias ExAirtable.{Airtable, TableSynchronizer}
   use GenServer
 
-  defstruct table_module: nil, sync_ref: nil, sync_rate: nil, hash: nil
+  defstruct table_module: nil, sync_ref: nil, sync_rate: nil, hash: nil, notify: nil
 
   @typedoc """
   A struct that contains the state for a `TableCache`.
@@ -25,6 +25,7 @@ defmodule ExAirtable.TableCache do
           table_module: module(),
           sync_ref: pid(),
           sync_rate: integer(),
+          notify: (() -> any()),
           hash: String.t()
         }
 
@@ -151,6 +152,8 @@ defmodule ExAirtable.TableCache do
     |> table_for()
     |> :ets.delete(id)
 
+    notify(state, {:delete, id})
+
     {:noreply, state}
   end
 
@@ -158,6 +161,8 @@ defmodule ExAirtable.TableCache do
     table_module
     |> table_for()
     |> :ets.insert({id, item})
+
+    notify(state, {:update, id, item})
 
     {:noreply, state}
   end
@@ -181,6 +186,8 @@ defmodule ExAirtable.TableCache do
 
       # update/insert new records
       Enum.each(records, &:ets.insert(table, {&1.id, &1}))
+
+      notify(state, {:update_all, records})
     end
 
     {:noreply, %{state | hash: new_hash}}
@@ -191,6 +198,7 @@ defmodule ExAirtable.TableCache do
 
     Enum.each(list.records, fn record ->
       :ets.insert(table, {record.id, record})
+      notify(state, {:update, record.id, record})
     end)
 
     {:noreply, state}
@@ -218,6 +226,7 @@ defmodule ExAirtable.TableCache do
     :ets.new(table_for(table_module), [:ordered_set, :protected, :named_table])
 
     state = %__MODULE__{
+      notify: Keyword.get(opts, :notify),
       table_module: table_module,
       sync_rate: Keyword.get(opts, :sync_rate, :timer.seconds(30))
     }
@@ -272,4 +281,13 @@ defmodule ExAirtable.TableCache do
         list
     end
   end
+
+  defp notify(_state, {:delete, "paginated_list"}), do: nil
+  defp notify(_state, {:update, "paginated_list", _}), do: nil
+
+  defp notify(%{notify: n, table_module: mod} = state, data) when is_function(n) do
+    n.(mod, data)
+  end
+
+  defp notify(_, _), do: nil
 end
