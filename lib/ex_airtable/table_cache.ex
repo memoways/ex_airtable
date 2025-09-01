@@ -285,7 +285,7 @@ defmodule ExAirtable.TableCache do
   defp notify(_state, {:delete, "paginated_list"}), do: nil
   defp notify(_state, {:update, "paginated_list", _}), do: nil
 
-  defp notify(%{notify: n, table_module: mod} = state, data) when is_function(n) do
+  defp notify(%{notify: n, table_module: mod} = _state, data) when is_function(n) do
     n.(mod, data)
   end
 
