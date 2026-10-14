@@ -90,8 +90,10 @@ defmodule ExAirtable.Service do
   This is typically utilized by cache processes rather than called by hand - although it could be used by hand if you only want one page of results.
   """
   def list_async(%Config.Table{} = table, opts \\ []) do
-    perform_request(table, opts)
-    |> Airtable.List.from_map()
+    case perform_request(table, opts) do
+      %{} = map -> Airtable.List.from_map(map)
+      error -> error
+    end
   end
 
   @doc """

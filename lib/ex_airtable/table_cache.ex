@@ -95,6 +95,13 @@ defmodule ExAirtable.TableCache do
     set_all(table_module, new_list)
   end
 
+  # A failed or unexpected result must never be treated as an empty table
+  # (which would wipe the cache). Drop any partial pagination so the next
+  # sync starts from a clean slate.
+  def push_paginated_list(table_module, _other) do
+    delete(table_module, %{"id" => "paginated_list"})
+  end
+
   @doc """
   Given an `ExAirtable.Table` module and a string key, get the %Record{} in that cache with the matching key.
   """
