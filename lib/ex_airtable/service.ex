@@ -151,7 +151,15 @@ defmodule ExAirtable.Service do
     |> String.replace("+", "%20")
   end
 
+  # Airtable allows 5 requests/second; a 429 should clear within a second. Retry
+  # a bounded number of times so a persistent 429 can never wedge the caller.
+  @max_rate_limit_retries 3
+
   defp perform_request(table, opts) when is_list(opts) do
+    perform_request(table, opts, @max_rate_limit_retries)
+  end
+
+  defp perform_request(table, opts, retries) do
     request_data = %HTTPoison.Request{
       body: Keyword.get(opts, :body, ""),
       headers: default_headers(table),
@@ -165,9 +173,12 @@ defmodule ExAirtable.Service do
         body
         |> Jason.decode!()
 
+      {:ok, %HTTPoison.Response{status_code: 429} = _response} when retries > 0 ->
+        Process.sleep(:timer.seconds(1))
+        perform_request(table, opts, retries - 1)
+
       {:ok, %HTTPoison.Response{status_code: 429}} ->
-        Process.sleep(:timer.seconds(30))
-        perform_request(table, opts)
+        {:error, :rate_limited}
 
       {:ok, %HTTPoison.Response{} = response} ->
         {:error, response}

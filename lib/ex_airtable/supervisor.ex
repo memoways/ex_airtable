@@ -37,7 +37,9 @@ defmodule ExAirtable.Supervisor do
         )
       end)
 
-    children = table_caches ++ [{RateLimiter, table_modules}]
+    children =
+      [{Task.Supervisor, name: ExAirtable.TaskSupervisor}] ++
+        table_caches ++ [{RateLimiter, table_modules}]
 
     Supervisor.init(children, strategy: :one_for_one)
   end

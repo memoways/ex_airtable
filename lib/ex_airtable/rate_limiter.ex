@@ -10,6 +10,10 @@ defmodule ExAirtable.RateLimiter do
   use GenServer
   alias ExAirtable.RateLimiter.{BaseQueue, Request}
 
+  # Requests are HTTP calls that may include a bounded 429 backoff, so allow
+  # more than the `Task.await/1` default of 5s before giving up.
+  @task_timeout :timer.seconds(30)
+
   @doc """
   Add a request to the request buffer for a given table.
 
@@ -53,8 +57,20 @@ defmodule ExAirtable.RateLimiter do
       |> Enum.sort_by(& &1.created)
       |> Enum.split(base_queue.max_demand - base_queue.in_progress)
 
-    Enum.map(requests_to_run, &Task.async(fn -> Request.run(&1) end))
-    |> Enum.each(&Task.await/1)
+    requests_to_run
+    |> Enum.map(fn request ->
+      Task.Supervisor.async_nolink(ExAirtable.TaskSupervisor, fn ->
+        Request.run(request)
+      end)
+    end)
+    |> Enum.each(fn task ->
+      try do
+        Task.await(task, @task_timeout)
+      catch
+        # A slow or failing request must not take down the rate limiter.
+        :exit, _reason -> :ok
+      end
+    end)
 
     updated_queues =
       Map.put(base_queues, base_id, %{
